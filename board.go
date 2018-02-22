@@ -304,13 +304,29 @@ func FindPath(b *Board, c *Config) *Solution {
 	height, width := b.shape.height, b.shape.width
 	sols := make([]*Solution, 0, 4*height*width)
 	bestSol, _ := NewSolution(b)
+	bestSol.board.Swap(Position{0, 0}, Position{0, 1})
+	bestSol.path = append(bestSol.path, Position{0, 0}, Position{0, 1})
+	bestSol.statics, _ = Update(bestSol.board, c)
 
-	// set all points as starting point
+	// set all points and first move as starting point
 	for i := 0; i < height; i++ {
 		for j := 0; j < width; j++ {
-			sol, _ := CopySolution(bestSol)
-			sol.path = append(sol.path, Position{i, j})
-			sols = append(sols, sol)
+			currPosition := Position{i, j}
+			for _, move := range MOVES {
+				nextPosition := Add(currPosition, move)
+
+				// swap two orbs and add to solutions
+				if b.InBoard(nextPosition) {
+					newSol, _ := NewSolution(b)
+					newSol.board.Swap(currPosition, nextPosition)
+					// skip the board same as initial board
+					if String(newSol.board.orbs) == String(b.orbs) {
+						continue
+					}
+					newSol.path = append(newSol.path, currPosition, nextPosition)
+					sols = append(sols, newSol)
+				}
+			}
 		}
 	}
 
@@ -319,22 +335,16 @@ func FindPath(b *Board, c *Config) *Solution {
 		sols = sols[1:]
 
 		if len(sol.path) < c.maxPathLength {
-			// skip the board same as initial board
-			if len(sol.path) == 2 {
-				if String(sol.board.orbs) == String(b.orbs) {
+			currPosition := sol.path[len(sol.path)-1]
+			for _, move := range MOVES {
+				nextPosition := Add(currPosition, move)
+
+				// skip go back move
+				prevPosition := sol.path[len(sol.path)-2]
+				if prevPosition == nextPosition {
 					continue
 				}
-			}
-			for _, move := range MOVES {
-				currPosition := sol.path[len(sol.path)-1]
-				nextPosition := Add(currPosition, move)
-				// skip go back move
-				if len(sol.path) >= 2 {
-					prevPosition := sol.path[len(sol.path)-2]
-					if prevPosition == nextPosition {
-						continue
-					}
-				}
+
 				// swap two orbs and add to solutions
 				if sol.board.InBoard(nextPosition) {
 					newSol, _ := CopySolution(sol)
@@ -357,6 +367,7 @@ func FindPath(b *Board, c *Config) *Solution {
 	return bestSol
 }
 
+// Add two position
 func Add(p, q Position) Position {
 	return Position{p.height + q.height, p.width + q.width}
 }
