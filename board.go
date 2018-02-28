@@ -25,6 +25,11 @@ type Position struct {
 	height, width int
 }
 
+// Add two position
+func Add(p, q Position) Position {
+	return Position{p.height + q.height, p.width + q.width}
+}
+
 type Board struct {
 	orbs  []Orb
 	shape Position
@@ -52,16 +57,7 @@ type Config struct {
 	maxPathLength int
 }
 
-// Up, Down, Left, Right
-var MOVES = [4]Position{Position{-1, 0}, Position{1, 0}, Position{0, -1}, Position{0, 1}}
-
-type Solution struct {
-	board   *Board
-	path    []Position
-	statics *Statics
-}
-
-// Set board by string of numbers.
+// NewBoard set board by string of numbers.
 // like "111222333111111222333111111222"
 func NewBoard(height, width int, board string) (*Board, error) {
 	if width <= 0 || height <= 0 {
@@ -125,7 +121,7 @@ func NewBoardImp(b *Board, c *Config) (*BoardImp, error) {
 
 func (b *BoardImp) Update() {
 	for b.UpdateOnce() {
-		b.statics.fallCount += 1
+		b.statics.fallCount++
 	}
 }
 
@@ -230,7 +226,7 @@ func (b *BoardImp) updateStatics() {
 				b.checked[start] = true
 				continue
 			}
-			b.statics.combo += 1
+			b.statics.combo++
 			b.location = append(b.location, Position{i, j})
 			for len(b.location) > 0 {
 				pos := b.location[0]
@@ -280,102 +276,4 @@ func (b *BoardImp) floodFill() {
 			b.board.orbs[index] = b.orbs[i]
 		}
 	}
-}
-
-func NewSolution(b *Board) (*Solution, error) {
-	s := new(Solution)
-	s.board, _ = CopyBoard(b)
-	s.path = make([]Position, 0)
-	s.statics = &Statics{}
-	return s, nil
-}
-
-func CopySolution(sol *Solution) (*Solution, error) {
-	s := new(Solution)
-	s.board, _ = CopyBoard(sol.board)
-	s.path = make([]Position, 0, len(sol.path)+1)
-	for _, val := range sol.path {
-		s.path = append(s.path, val)
-	}
-	return s, nil
-}
-
-func FindPath(b *Board, c *Config) *Solution {
-	height, width := b.shape.height, b.shape.width
-	sols := make([]*Solution, 0, 4*height*width)
-	bestSol, _ := NewSolution(b)
-	bestSol.board.Swap(Position{0, 0}, Position{0, 1})
-	bestSol.path = append(bestSol.path, Position{0, 0}, Position{0, 1})
-	bestSol.statics, _ = Update(bestSol.board, c)
-
-	// set all points and first move as starting point
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
-			currPosition := Position{i, j}
-			for _, move := range MOVES {
-				nextPosition := Add(currPosition, move)
-
-				// swap two orbs and add to solutions
-				if b.InBoard(nextPosition) {
-					newSol, _ := NewSolution(b)
-					newSol.board.Swap(currPosition, nextPosition)
-					// skip the board same as initial board
-					if String(newSol.board.orbs) == String(b.orbs) {
-						continue
-					}
-					newSol.path = append(newSol.path, currPosition, nextPosition)
-					sols = append(sols, newSol)
-				}
-			}
-		}
-	}
-
-	for len(sols) > 0 {
-		sol := sols[0]
-		sols = sols[1:]
-
-		if len(sol.path) < c.maxPathLength {
-			currPosition := sol.path[len(sol.path)-1]
-			for _, move := range MOVES {
-				nextPosition := Add(currPosition, move)
-
-				// skip go back move
-				prevPosition := sol.path[len(sol.path)-2]
-				if prevPosition == nextPosition {
-					continue
-				}
-
-				// swap two orbs and add to solutions
-				if sol.board.InBoard(nextPosition) {
-					newSol, _ := CopySolution(sol)
-					newSol.board.Swap(currPosition, nextPosition)
-					newSol.path = append(newSol.path, nextPosition)
-					sols = append(sols, newSol)
-				}
-			}
-		}
-
-		// evaluate solution
-		sol.statics, _ = Update(sol.board, c)
-		if sol.statics.combo > bestSol.statics.combo {
-			bestSol = sol
-		} else if sol.statics.combo == bestSol.statics.combo && len(sol.path) < len(bestSol.path) {
-			bestSol = sol
-		}
-	}
-
-	return bestSol
-}
-
-// Add two position
-func Add(p, q Position) Position {
-	return Position{p.height + q.height, p.width + q.width}
-}
-
-func NewConfig() *Config {
-	return &Config{3, 30}
-}
-
-func (s *Solution) Get() (*Board, []Position, *Statics) {
-	return s.board, s.path, s.statics
 }
